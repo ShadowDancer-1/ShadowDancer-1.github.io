@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShadowDancer — Teaching Video World Models Any Action</title>
+<meta name="description" content="ShadowDancer teaches a single video world model any action by learning unified dynamics representations from a video and its shadow: frame-synchronized shadow pairs disentangle dynamics from appearance, enabling action transfer and long rollouts across human motion, first- and third-person combat, camera control, and robot manipulation.">
+<meta name="keywords" content="ShadowDancer, world model, video generation, latent action model, action transfer, shadow pairs, video diffusion, interactive video, dynamics representation">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<link rel="canonical" href="https://shadowdancer-1.github.io/">
+<meta property="og:site_name" content="ShadowDancer">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://shadowdancer-1.github.io/">
+<meta property="og:title" content="ShadowDancer — Teaching Video World Models Any Action">
+<meta property="og:description" content="One latent interface, every dynamics family: shadow pairs disentangle dynamics from appearance for action-controllable video world models.">
+<meta property="og:image" content="https://shadowdancer-1.github.io/figures/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ShadowDancer — Teaching Video World Models Any Action">
+<meta name="twitter:description" content="One latent interface, every dynamics family: shadow pairs disentangle dynamics from appearance for action-controllable video world models.">
+<meta name="twitter:image" content="https://shadowdancer-1.github.io/figures/og.jpg">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebSite","name":"ShadowDancer",
+ "url":"https://shadowdancer-1.github.io/",
+ "description":"ShadowDancer teaches video world models any action by learning unified dynamics representations from a video and its shadow.",
+ "author":[{"@type":"Person","name":"Jin Cao","url":"https://jin-cao-tma.github.io/"},
+           {"@type":"Person","name":"Zian Meng"},
+           {"@type":"Person","name":"Kaipeng Zhang","url":"https://kpzhang93.github.io/"}]}
+</script>
+<link rel="icon" href="figures/icon2.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   ShadowDancer — the allegory on white.
+   A single scroll from the cave wall to the sun:
+   ink on paper, one gold accent (the sun), shadow-grey secondary.
+   ────────────────────────────────────────────────────────────── */
+:root{
+  --paper:#ffffff;
+  --ink:#191817;
+  --ink-2:#4d4a45;
+  --ink-3:#8a857d;
+  --line:#e4e1db;
+  --sun:#c8871a;          /* the one strong color on the page */
+  --sun-deep:#a86d0e;
+  --sun-halo:#f6e8cf;
+  --shadow-grey:#b9b4ab;  /* the shadows on the wall */
+  --serif:"Cormorant Garamond",Georgia,"Times New Roman",serif;
+  --sans:"Source Sans 3",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --maxw:1000px;   /* everything — text, players, strips — shares this one boundary */
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font:400 17px/1.65 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px}
+a{color:inherit}
+::selection{background:var(--sun-halo)}
+
+/* ── hero ─────────────────────────────────────────── */
+.hero{position:relative;padding:66px 0 0;overflow:hidden}
+.sun-top{position:absolute;top:-170px;left:50%;transform:translateX(-50%);width:520px;height:520px;
+  border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,var(--sun-halo) 0%,rgba(246,232,207,.5) 42%,rgba(246,232,207,0) 70%);
+  animation:sunbreathe 9s ease-in-out infinite}
+@keyframes sunbreathe{0%,100%{opacity:.85;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.05)}}
+.hero .wrap{position:relative;text-align:center}
+.kicker{font:600 12px/1 var(--sans);letter-spacing:.22em;text-transform:uppercase;color:var(--sun-deep)}
+h1.title{font:600 clamp(58px,9vw,116px)/1.02 var(--serif);letter-spacing:.01em;margin:22px 0 6px}
+h1.title .sh{color:var(--shadow-grey)}
+.subtitle{font:400 clamp(18px,2vw,22px)/1.5 var(--sans);color:var(--ink-2);max-width:52ch;margin:10px auto 0;text-wrap:balance}
+.quote{font:italic 500 clamp(17px,1.9vw,21px)/1.55 var(--serif);color:var(--ink-2);max-width:56ch;margin:30px auto 0}
+.quote .who{display:block;font:400 13px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-top:10px}
+.authors{margin-top:30px;font-size:16.5px}
+.authors a{text-decoration:none;border-bottom:1.2px solid var(--shadow-grey);padding-bottom:1px;transition:border-color .15s,color .15s}
+.authors a[href]:hover{color:var(--sun-deep);border-color:var(--sun)}
+.authors a.nolink{cursor:default}
+.authors sup{color:var(--sun-deep);font-size:.7em}
+.affil{color:var(--ink-3);font-size:14.5px;margin-top:5px}
+.btns{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:26px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 22px;border:1.2px solid var(--ink);border-radius:100px;
+  font:600 14.5px/1 var(--sans);text-decoration:none;transition:.18s;background:var(--paper)}
+.btn:hover{background:var(--ink);color:var(--paper);transform:translateY(-1px)}
+.btn.gold{border-color:var(--sun);color:var(--sun-deep)}
+.btn.gold:hover{background:var(--sun);color:#fff}
+
+/* the allegory frieze — cave → walker → sun, one ink line */
+.frieze{margin:52px auto 0;max-width:1080px;padding:0 24px}
+.frieze svg{width:100%;height:auto;display:block}
+.frieze-cap{display:flex;justify-content:space-between;max-width:1020px;margin:10px auto 0;padding:0 30px;
+  font:400 12.5px/1.4 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+.hero-rule{border:none;border-top:1px solid var(--line);margin-top:54px}
+
+/* ── sections ─────────────────────────────────────── */
+section{padding:78px 0 84px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--sun-deep);margin-bottom:14px}
+h2{font:600 clamp(30px,3.8vw,46px)/1.12 var(--serif);text-wrap:balance}
+.lede{color:var(--ink-2);margin-top:16px;font-size:17.5px;text-wrap:pretty}
+.lede em,.lede i{font-style:italic}
+.lede b{font-weight:600;color:var(--ink)}
+
+/* §01 player: one big stage + selectable thumbnail strip.
+   The stage is narrower than the column: the source is 960px wide, upscaling blurs it. */
+.player{margin:38px auto 0}
+.stage{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#f4f2ee;
+  box-shadow:0 22px 54px -26px rgba(25,24,23,.28);max-width:480px;margin:0 auto}
+/* fixed 480px on every display: on 2x Retina this is a 1:1 map of the 960px source
+   (sharp); on 1x it downscales (sharp). A single size avoids the jarring resize when
+   the window moves between a Retina laptop and a 1x external monitor. */
+.stage-cap{text-align:center}
+.stage video{display:block;width:100%;height:auto}
+.stage .tag{top:14px;left:14px}
+.stage-cap{margin:12px 4px 0;font-size:15px;color:var(--ink-2)}
+.thumbs{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:16px}
+.th{position:relative;display:block;width:100%;padding:0;border:2px solid var(--line);border-radius:9px;overflow:hidden;
+  background:#fff;cursor:pointer;transition:border-color .16s,transform .16s;font:inherit}
+.th img,.th video{display:block;width:100%;height:64px;object-fit:cover;pointer-events:none;background:#f4f2ee}
+.th span{display:block;padding:5px 4px 6px;font:600 11px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.th:hover{transform:translateY(-2px);border-color:#d8d3ca}
+.th.active{border-color:var(--sun)}
+.th.active span{color:var(--sun-deep)}
+.th.active video{filter:grayscale(1) brightness(.82)}
+.th:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+
+/* video cards */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:38px}
+.vid-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  transition:transform .22s,box-shadow .22s,border-color .22s}
+.vid-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px -14px rgba(25,24,23,.22);border-color:#d8d3ca}
+.vid-card.wide{grid-column:span 2}
+.vid-card video{display:block;width:100%;height:auto;background:#f4f2ee}
+.tag{position:absolute;top:10px;left:10px;z-index:3;font:600 10.5px/1 var(--sans);letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-2);background:rgba(255,255,255,.92);border:1px solid var(--line);padding:5px 9px;border-radius:100px}
+.cap{padding:10px 13px;font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line)}
+.ph{position:absolute;inset:0;display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;
+  background:repeating-linear-gradient(45deg,#faf9f7 0 12px,#f2f0ec 12px 24px);color:var(--ink-3);
+  font:400 12px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;z-index:2}
+.ph b{font:italic 600 15px/1 var(--serif);letter-spacing:0;text-transform:none;color:var(--ink-2)}
+.ph.gone{display:none}
+
+/* §02 shadow pair + protocol browser */
+.proto-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:30px}
+.pt{font:600 13px/1 var(--sans);letter-spacing:.03em;padding:9px 15px;border:1.4px solid var(--line);border-radius:100px;
+  background:#fff;color:var(--ink-2);cursor:pointer;transition:.15s}
+.pt:hover{border-color:#d8d3ca;transform:translateY(-1px)}
+.pt.active{border-color:var(--sun);color:var(--sun-deep);background:var(--sun-halo)}
+.pt:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.proto-note{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.pn{border:1px solid var(--line);border-radius:10px;padding:13px 16px;font-size:14px;color:var(--ink-2)}
+.pn .k{display:block;font:600 10.5px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--sun-deep);margin-bottom:6px}
+.pair-row{display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:stretch;margin-top:18px}
+.pair-card{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.pair-card video{display:block;width:100%;height:auto;background:#f4f2ee}
+.pair-lab{position:absolute;top:10px;left:10px;z-index:3;font:italic 600 16px/1 var(--serif);
+  background:rgba(255,255,255,.92);border:1px solid var(--line);padding:6px 12px;border-radius:100px}
+.pair-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 26px;gap:8px}
+.pair-mid .beam{width:1.4px;flex:1;background:linear-gradient(var(--line),var(--sun),var(--line))}
+.pair-mid .lab{font:600 11px/1.5 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--sun-deep);
+  writing-mode:vertical-rl;text-orientation:mixed}
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.tri .cell{border:1px solid var(--line);border-radius:10px;padding:20px 22px}
+.tri h3{font:600 20px/1.25 var(--serif);margin-bottom:8px}
+.tri p{font-size:14.5px;color:var(--ink-2)}
+
+/* §03/§04 comparison strips */
+.cmp-row{margin-top:30px}
+.cmp-row .strip{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.cmp-row video{display:block;width:100%;height:auto;background:#f4f2ee}
+.cmp-meta{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:baseline;margin:8px 2px 0;font-size:13.5px;color:var(--ink-3)}
+.cmp-meta .l{font:600 14px/1 var(--sans);color:var(--ink-2)}
+.cmp-meta .c{text-align:center}
+.cmp-meta .r{text-align:right}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:42px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:26px 24px;text-align:center}
+.stat .big{font:600 64px/1 var(--serif);color:var(--sun-deep)}
+.stat .big span{font-size:.5em}
+.stat .who{font:600 13px/1.3 var(--sans);letter-spacing:.1em;text-transform:uppercase;margin-top:8px}
+.stat .what{font-size:13px;color:var(--ink-3);margin-top:4px}
+.statnote{font-size:13.5px;color:var(--ink-3);margin-top:14px}
+
+/* §05 method */
+.pipe{margin-top:38px;border:1px solid var(--line);border-radius:12px;padding:26px;background:#fff}
+.pipe img{width:100%;height:auto;display:block}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+.step{padding:20px 22px;border-top:2.5px solid var(--sun);background:linear-gradient(#fbfaf8,#fff);border-radius:0 0 10px 10px}
+.step .n{font:italic 600 18px/1 var(--serif);color:var(--sun-deep)}
+.step h3{font:600 19px/1.3 var(--serif);margin:8px 0 6px}
+.step p{font-size:14.5px;color:var(--ink-2);text-wrap:pretty}
+
+/* §06 out of the cave — the sun section */
+.sunland{position:relative;border-bottom:1px solid var(--line);overflow:hidden;
+  background:
+    radial-gradient(1100px 520px at 50% -180px, var(--sun-halo) 0%, rgba(246,232,207,.42) 45%, rgba(255,255,255,0) 72%),
+    var(--paper);
+  padding:96px 0 90px}
+.bigsun{position:absolute;top:-104px;left:50%;transform:translateX(-50%);width:208px;height:208px;pointer-events:none}
+.bigsun .disc{fill:#fff;stroke:var(--sun);stroke-width:2.4}
+.bigsun .ray{stroke:var(--sun);stroke-width:2.2;stroke-linecap:round;transform-origin:104px 104px;animation:raypulse 7s ease-in-out infinite}
+@keyframes raypulse{0%,100%{opacity:.55}50%{opacity:1}}
+.sunland .eyebrow{color:var(--sun-deep)}
+.sunquote{font:italic 500 clamp(17px,1.9vw,21px)/1.55 var(--serif);color:var(--ink-2);margin-top:18px}
+.mods{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+.mod{border:1px solid var(--line);border-radius:10px;padding:20px 22px;background:rgba(255,255,255,.75)}
+.mod .k{font:600 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--sun-deep)}
+.mod h3{font:600 21px/1.25 var(--serif);margin:8px 0 6px}
+.mod p{font-size:14.5px;color:var(--ink-2)}
+.unseen{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px}
+.subhead{font:600 13.5px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--sun-deep);margin-top:48px}
+.subhead .ab{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-right:10px;
+  border:1.4px solid var(--sun);border-radius:50%;font:italic 600 14px/1 var(--serif);color:var(--sun-deep)}
+.subnote{font-size:15px;color:var(--ink-2);margin-top:10px}
+
+/* citation + footer */
+.bib{margin-top:34px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.bib pre{padding:22px 24px;font:400 13.5px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink-2);overflow-x:auto;background:#fbfaf8}
+.bib .bar{display:flex;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--line)}
+.copy{font:600 13px/1 var(--sans);padding:8px 16px;border:1.2px solid var(--ink);border-radius:100px;background:#fff;cursor:pointer}
+.copy:hover{background:var(--ink);color:#fff}
+footer{padding:44px 0 60px;color:var(--ink-3);font-size:14px;text-align:center}
+
+@media(max-width:960px){
+  .thumbs{grid-template-columns:repeat(4,1fr)}
+  .proto-note{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .tri,.stats,.steps,.mods{grid-template-columns:1fr}
+  .pair-row{grid-template-columns:1fr}
+  .pair-mid{flex-direction:row;padding:14px 0}
+  .pair-mid .beam{height:1.4px;width:auto;flex:1;background:linear-gradient(90deg,var(--line),var(--sun),var(--line))}
+  .pair-mid .lab{writing-mode:horizontal-tb}
+  .unseen{grid-template-columns:1fr}
+  .vid-card.wide{grid-column:span 2}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO — ink on paper, the sun above ═══════════ -->
+<header class="hero">
+  <div class="sun-top"></div>
+  <div class="wrap">
+    <h1 class="title">Shadow<span class="sh">Dancer</span></h1>
+    <p class="subtitle">Teaching video world models any action by learning unified dynamics representations from a video and its shadow.</p>
+    <p class="quote">“They see only their own shadows, or the shadows of one another, which the fire throws on the opposite wall of the cave.”
+      <span class="who">— Plato, The Republic</span></p>
+    <p class="authors"><a href="https://jin-cao-tma.github.io/" target="_blank" rel="noopener">Jin&nbsp;Cao</a><sup>1</sup> &nbsp;·&nbsp; <a class="nolink">Zian&nbsp;Meng</a><sup>1,2</sup> &nbsp;·&nbsp; <a href="https://kpzhang93.github.io/" target="_blank" rel="noopener">Kaipeng&nbsp;Zhang</a><sup>1†</sup></p>
+    <p class="affil"><sup>1</sup>Alaya Lab &nbsp;&nbsp; <sup>2</sup>Shanghai Innovation Institute</p>
+    <nav class="btns">
+      <a class="btn" href="assets/shadowdancer_paper.pdf" target="_blank" rel="noopener">📄 Paper</a>
+      <a class="btn" href="https://arxiv.org/abs/2607.28362" target="_blank" rel="noopener">arXiv</a>
+      <a class="btn" href="https://github.com/AlayaLab/ShadowDancer" target="_blank" rel="noopener">Code</a>
+      <a class="btn gold" href="#bibtex">BibTeX</a>
+    </nav>
+  </div>
+
+  <!-- Plato's cave, left to right: wall ← shadows ← chained prisoners ← fire (raised) … cave mouth … a freed man looks up at the sun -->
+  <div class="frieze" aria-label="Plato's cave: chained prisoners face a wall of shadows cast by a fire behind them; outside, a freed man looks up at the sun">
+    <svg viewBox="0 0 1200 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="caveFade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#f1eee8"/>
+          <stop offset=".72" stop-color="#f6f4ef"/>
+          <stop offset="1" stop-color="#ffffff"/>
+        </linearGradient>
+      </defs>
+      <!-- cave interior: filled, so inside reads dark(er) and outside bright -->
+      <path d="M66 226 C 58 112, 190 54, 360 56 C 505 58, 592 104, 646 196 L 652 226 Z" fill="url(#caveFade)"/>
+      <!-- cave roof line -->
+      <path d="M66 226 C 58 112, 190 54, 360 56 C 505 58, 592 104, 646 196" stroke="#191817" stroke-width="2"/>
+      <!-- ground -->
+      <path d="M30 226 H1170" stroke="#191817" stroke-width="1.6"/>
+
+      <!-- THE WALL the prisoners face: an explicit vertical screen -->
+      <path d="M104 226 V 92" stroke="#191817" stroke-width="2.2"/>
+      <path d="M104 92 l 10 6" stroke="#191817" stroke-width="1.4"/>
+      <!-- shadows cast ON the wall: human silhouettes (head + torso + legs), stretched and tilted -->
+      <g stroke="#b9b4ab" stroke-linecap="round" fill="#b9b4ab">
+        <!-- shadow figure 1 (larger): a seated person, elongated up the wall -->
+        <g opacity=".92">
+          <circle cx="124" cy="112" r="9.5" stroke="none"/>
+          <path d="M122 122 L 117 164" stroke-width="7" fill="none"/>          <!-- torso -->
+          <path d="M117 164 L 106 190" stroke-width="6" fill="none"/>          <!-- leg -->
+          <path d="M117 164 L 124 194" stroke-width="6" fill="none"/>          <!-- leg -->
+          <path d="M121 132 L 110 150" stroke-width="5" fill="none"/>          <!-- arm -->
+        </g>
+        <!-- shadow figure 2 (smaller, further along the wall) -->
+        <g opacity=".68">
+          <circle cx="130" cy="164" r="7" stroke="none"/>
+          <path d="M128 172 L 124 202" stroke-width="5.5" fill="none"/>
+          <path d="M124 202 L 116 220" stroke-width="4.5" fill="none"/>
+          <path d="M124 202 L 130 222" stroke-width="4.5" fill="none"/>
+        </g>
+      </g>
+
+      <!-- CHAINED PRISONERS: seated, facing the wall (left); ankle chains to ground rings -->
+      <g stroke="#191817" stroke-width="6.5" stroke-linecap="round" fill="none">
+        <!-- prisoner 1 -->
+        <path d="M236 162 L 233 196"/>                       <!-- back -->
+        <path d="M233 196 L 210 198 L 210 224"/>             <!-- thigh + shin, folded toward the wall -->
+        <path d="M235 172 L 216 186"/>                       <!-- arm resting toward knees -->
+        <!-- prisoner 2 -->
+        <path d="M292 158 L 289 194"/>
+        <path d="M289 194 L 266 196 L 266 224"/>
+        <path d="M291 168 L 272 183"/>
+        <!-- prisoner 3 -->
+        <path d="M348 162 L 345 196"/>
+        <path d="M345 196 L 322 198 L 322 224"/>
+        <path d="M347 172 L 328 186"/>
+      </g>
+      <g fill="#191817">
+        <circle cx="238" cy="150" r="10"/>
+        <circle cx="294" cy="146" r="10"/>
+        <circle cx="350" cy="150" r="10"/>
+      </g>
+      <!-- ankle chains: a slack chain (dashed = links) from each ankle to a small floor anchor -->
+      <g stroke="#191817" fill="none">
+        <!-- ankle cuffs -->
+        <circle cx="210" cy="219" r="4" stroke-width="2"/>
+        <circle cx="266" cy="219" r="4" stroke-width="2"/>
+        <circle cx="322" cy="219" r="4" stroke-width="2"/>
+        <!-- slack chains, dashed to read as links -->
+        <path d="M214 220 Q 230 233 246 222" stroke-width="2" stroke-dasharray="4.5 3.5"/>
+        <path d="M270 220 Q 286 233 302 222" stroke-width="2" stroke-dasharray="4.5 3.5"/>
+        <path d="M326 220 Q 342 233 358 222" stroke-width="2" stroke-dasharray="4.5 3.5"/>
+        <!-- floor anchors -->
+        <circle cx="248" cy="223" r="3" stroke-width="2.2"/>
+        <circle cx="304" cy="223" r="3" stroke-width="2.2"/>
+        <circle cx="360" cy="223" r="3" stroke-width="2.2"/>
+      </g>
+
+      <!-- FIRE, raised on a ledge BEHIND the prisoners (classic layout: fire → prisoners → wall) -->
+      <g>
+        <path d="M446 226 V 186 H 500 V 226" stroke="#191817" stroke-width="1.8"/>
+        <path d="M446 186 H 500" stroke="#191817" stroke-width="1.8"/>
+        <path d="M462 186 c -5 -16 2 -25 9 -34 c 0 9 6 10 8 17 c 4 -7 1 -14 7 -21 c 7 12 11 26 4 38 z" fill="#c8871a"/>
+      </g>
+      <!-- projection rays: fire, over the prisoners' heads, onto the wall -->
+      <g stroke="#c8871a" stroke-width="1.1" stroke-dasharray="3 6" opacity=".65">
+        <path d="M468 172 L 108 108"/>
+        <path d="M470 178 L 108 150"/>
+        <path d="M472 184 L 108 190"/>
+      </g>
+
+      <!-- OUTSIDE: the freed man, standing, head lifted, one arm raised toward the sun -->
+      <g stroke="#191817" stroke-width="7" stroke-linecap="round" fill="none">
+        <path d="M872 140 L 866 186"/>                       <!-- torso, leaning slightly back -->
+        <path d="M866 186 L 852 224"/>                       <!-- leg -->
+        <path d="M866 186 L 882 224"/>                       <!-- leg -->
+        <path d="M870 152 L 902 122"/>                       <!-- arm raised toward the sun -->
+        <path d="M871 158 L 852 184"/>                       <!-- arm relaxed -->
+      </g>
+      <circle cx="878" cy="126" r="11" fill="#191817"/>       <!-- head, tilted up toward the light -->
+      <!-- his shadow: a real sun-cast silhouette — a stretched human figure lying along
+           the ground, away from the sun (head at the far end, raised arm included) -->
+      <g stroke="#b9b4ab" fill="#b9b4ab" opacity=".75" stroke-linecap="round" transform="translate(16,0)">
+        <ellipse cx="712" cy="221.5" rx="14" ry="6" stroke="none"/>            <!-- head, farthest from the sun -->
+        <path d="M727 222 L 786 224" stroke-width="7" fill="none"/>            <!-- torso, stretched -->
+        <path d="M786 224 L 838 225.5" stroke-width="5.5" fill="none"/>        <!-- leg -->
+        <path d="M792 224.5 L 864 226" stroke-width="5.5" fill="none"/>        <!-- leg, meets his feet -->
+        <path d="M762 222.5 L 726 217" stroke-width="4.5" fill="none"/>        <!-- the raised arm, flattened -->
+      </g>
+      <!-- the gaze line: sun → his face -->
+      <path d="M1032 100 L 894 122" stroke="#c8871a" stroke-width="1.2" stroke-dasharray="3 6" opacity=".55"/>
+
+      <!-- THE SUN -->
+      <g>
+        <circle cx="1072" cy="82" r="42" fill="#fff" stroke="#c8871a" stroke-width="2.6"/>
+        <g stroke="#c8871a" stroke-width="2.2" stroke-linecap="round">
+          <path d="M1072 18 v-14"/><path d="M1072 146 v14"/>
+          <path d="M1008 82 h-14"/><path d="M1136 82 h14"/>
+          <path d="M1027 37 l-10 -10"/><path d="M1117 127 l10 10"/>
+          <path d="M1117 37 l10 -10"/><path d="M1027 127 l-10 10"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <div class="frieze-cap">
+    <span>chained to the wall of shadows</span>
+    <span>the turn toward the light</span>
+    <span>the sun itself</span>
+  </div>
+  <hr class="hero-rule">
+</header>
+
+<main>
+<!-- ═══════════ 01 · demo wall ═══════════ -->
+<section id="demos">
+  <div class="wrap">
+    <div class="eyebrow">01 · On the cave wall</div>
+    <h2>One latent interface. Every dynamics you see below.</h2>
+    <p class="lede">ShadowDancer targets <b>any-action, frame-level control</b>: one interface that specifies <i>how</i> an action unfolds, frame by frame, for any dynamics family. The wall below is that claim in motion.</p>
+    <p class="lede">Every video is generated from a first frame and a stream of demonstrated actions — no labels, an action is just a clip, read once by a frozen encoder.</p>
+    <!-- one big stage + a strip of selectable thumbnails -->
+    <div class="player">
+      <div class="stage">
+        <span class="tag" id="stage-tag">First-person</span>
+        <video id="stage-v" src="videos/cp_demo.mp4" muted loop autoplay playsinline preload="auto"></video>
+      </div>
+      <div class="stage-cap" id="stage-cap">Night city — weapon switching, firing, driving</div>
+      <div class="thumbs" id="thumbs">
+        <button class="th active" data-v="videos/cp_demo.mp4" data-tag="First-person" data-cap="Night city — weapon switching, firing, driving"><video src="previews/cp_demo.mp4" muted loop playsinline preload="metadata"></video><span>night city</span></button>
+        <button class="th" data-v="videos/spellcaster.mp4" data-tag="Third-person" data-cap="Spellcasting — an eight-spell rotation, chained as assets"><video src="previews/spellcaster.mp4" muted loop playsinline preload="metadata"></video><span>spellcasting</span></button>
+        <button class="th" data-v="videos/street.mp4" data-tag="First-person" data-cap="Downtown firefight"><video src="previews/street.mp4" muted loop playsinline preload="metadata"></video><span>street</span></button>
+        <button class="th" data-v="videos/base_raid.mp4" data-tag="First-person" data-cap="Military base raid"><video src="previews/base_raid.mp4" muted loop playsinline preload="metadata"></video><span>base raid</span></button>
+        <button class="th" data-v="videos/district.mp4" data-tag="First-person" data-cap="Combat-zone district streets"><video src="previews/district.mp4" muted loop playsinline preload="metadata"></video><span>district</span></button>
+        <button class="th" data-v="videos/neon.mp4" data-tag="First-person" data-cap="Neon alley"><video src="previews/neon.mp4" muted loop playsinline preload="metadata"></video><span>neon</span></button>
+        <button class="th" data-v="videos/samurai.mp4" data-tag="Third-person" data-cap="Samurai — melee sword arcs"><video src="previews/samurai.mp4" muted loop playsinline preload="metadata"></video><span>samurai</span></button>
+        <button class="th" data-v="videos/em23_canyon_40m.mp4" data-tag="Hunt" data-cap="Canyon hunt"><video src="previews/em23_canyon_40m.mp4" muted loop playsinline preload="metadata"></video><span>canyon</span></button>
+        <button class="th" data-v="videos/em25_lava.mp4" data-tag="Hunt" data-cap="Lava caverns hunt"><video src="previews/em25_lava.mp4" muted loop playsinline preload="metadata"></video><span>lava</span></button>
+        <button class="th" data-v="videos/anime1_orbit.mp4" data-tag="Human motion" data-cap="Human motion under an orbiting camera"><video src="previews/anime1_orbit.mp4" muted loop playsinline preload="metadata"></video><span>anime 1</span></button>
+        <button class="th" data-v="videos/anime2_orbit.mp4" data-tag="Human motion" data-cap="Human motion under an orbiting camera"><video src="previews/anime2_orbit.mp4" muted loop playsinline preload="metadata"></video><span>anime 2</span></button>
+        <button class="th" data-v="videos/athlete_orbit.mp4" data-tag="Human motion" data-cap="Human motion under an orbiting camera"><video src="previews/athlete_orbit.mp4" muted loop playsinline preload="metadata"></video><span>athlete</span></button>
+        <button class="th" data-v="videos/claw.mp4" data-tag="Robot" data-cap="Claw machine — interactive manipulation"><video src="previews/claw.mp4" muted loop playsinline preload="metadata"></video><span>claw</span></button>
+        <button class="th" data-v="videos/pusht.mp4" data-tag="Robot" data-cap="Push-T manipulation"><video src="previews/pusht.mp4" muted loop playsinline preload="metadata"></video><span>push-t</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 02 · shadow pairs ═══════════ -->
+<section id="shadow">
+  <div class="wrap">
+    <div class="eyebrow">02 · The allegory, taken literally</div>
+    <h2>Every video is a shadow.</h2>
+    <p class="lede">In Plato's cave, the prisoners mistake shadows for the things themselves. A video invites the same mistake: it shows its dynamics only through one particular appearance — one character, one scene, one camera — and it is tempting to take that single rendering for the dynamics itself.</p>
+    <p class="lede">That mistake is exactly what breaks control. The natural interface for an action is a demonstration — a clip specifies <i>how</i> the action unfolds, frame by frame, where commands and text only name <i>what</i> it is. But a demonstration is a shadow: models trained on single videos entangle the action with whatever happens to co-occur with it.</p>
+    <p class="lede">Our answer: observe the same dynamics <b>twice</b>. A <b>shadow pair</b> is two frame-synchronized renders of one dynamics with everything else resampled — what the pair preserves becomes the action (the weapon, the flames of a spell stay in by design); what it resamples is discarded. <b>Invariant to what a pairing resamples, faithful to what it preserves.</b></p>
+    <p class="lede">Below, the <b>Shadow Library</b> itself — each tab is one pairing protocol. <i>What a tab preserves is exactly what the latent will control.</i></p>
+    <div class="proto-tabs" id="proto-tabs"></div>
+    <div class="pair-row">
+      <div class="pair-card"><span class="pair-lab">video&nbsp;&nbsp;x</span><video id="pv-a" src="videos/proto_maniarm2_a.mp4" muted loop playsinline preload="auto"></video></div>
+      <div class="pair-mid"><div class="beam"></div><span class="lab">same dynamics</span><div class="beam"></div></div>
+      <div class="pair-card"><span class="pair-lab">shadow&nbsp;&nbsp;x̃</span><video id="pv-b" src="videos/proto_maniarm2_b.mp4" muted loop playsinline preload="auto"></video></div>
+    </div>
+    <div class="proto-note">
+      <div class="pn"><span class="k">shared dynamics</span><span id="pn-dyn">the arm trajectory and gripper state</span></div>
+      <div class="pn"><span class="k">independently resampled</span><span id="pn-res">tabletop scene, clutter, materials; the camera is held static</span></div>
+      <div class="pn"><span class="k">control mask (cam, dyn)</span><span id="pn-mask">(0, 1) — manipulation without camera motion</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 03 · method ═══════════ -->
+<section id="method">
+  <div class="wrap">
+    <div class="eyebrow">03 · Method</div>
+    <h2>From shadow pairs to a world model.</h2>
+    <div class="pipe"><img src="figures/pipeline-1.png" alt="ShadowDancer pipeline"></div>
+    <div class="steps">
+      <div class="step"><span class="n">i</span><h3>Construct shadow pairs</h3><p>The Shadow Library replays one dynamics while everything else — character, scene, lighting, camera — is independently resampled. Animation suites, open-world games, and robot simulators all emit the same artifact: two frame-synchronized clips sharing one dynamics.</p></div>
+      <div class="step"><span class="n">ii</span><h3>Cross-shadow prediction</h3><p>A latent action model reads actions from one shadow and must re-enact them in the other. What the pairing resamples cannot cross the pair, so the latent keeps only what the pair shares — the dynamics, and any trait bound to it — provably the minimal sufficient representation.</p></div>
+      <div class="step"><span class="n">iii</span><h3>Block-causal world model</h3><p>A video diffusion backbone, conditioned on the action latents and on source motion assets, is converted to a block-causal generator that streams long rollouts from reusable, variable-length action assets.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 04 · transfer ═══════════ -->
+<section id="transfer">
+  <div class="wrap">
+    <div class="eyebrow">04 · Action transfer</div>
+    <h2>The same action, in a world it has never seen.</h2>
+    <p class="lede">Everything here comes from a single checkpoint: one latent interface, four dynamics families. The action is read from one video and replayed from the first frame of its shadow — the other shadow is the ground truth. Olaf-World (retrained on our data, same backbone) drags appearance along with the action and warps subjects; the shadow-trained latent re-enacts the dynamics faithfully.</p>
+    <div class="cmp-row"><div class="strip"><video src="videos/cmp_weaponfire.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">“Weapon Fire”</span><span class="c"><b>dynamics</b> = player control (move, aim, fire) + camera &nbsp;·&nbsp; <b>resampled</b> = scene</span><span class="r">reference | Olaf-World | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/transfer_human.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">“Dance”</span><span class="c"><b>dynamics</b> = body motion + camera &nbsp;·&nbsp; <b>resampled</b> = character, scene</span><span class="r">reference | Olaf-World | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/cmp_swordslash.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">“Sword Slash”</span><span class="c"><b>dynamics</b> = character motion + chase camera &nbsp;·&nbsp; <b>resampled</b> = scene</span><span class="r">reference | Olaf-World | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/cmp_liftpeg.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">“Lift Peg Upright”</span><span class="c"><b>dynamics</b> = robot-arm trajectory only &nbsp;·&nbsp; <b>resampled</b> = tabletop scene</span><span class="r">reference | Olaf-World | ours</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 05 · rollout ═══════════ -->
+<section id="rollout">
+  <div class="wrap">
+    <div class="eyebrow">05 · Long action rollout</div>
+    <h2>Chained commands, judged head-to-head.</h2>
+    <p class="lede">Discrete commands become lookups of stored assets and stream through the block-causal generator. With no ground truth for a chained command stream, rollouts are judged in blinded 2AFC against LingBot-World 2.0 (camera poses + text), Yume-1.5 (text + keystrokes), and Olaf-World's latent interface. Strips share the first frame and commands; a rollout that ends early holds its last frame. Text and keystrokes say <i>what</i> — the demonstration-derived latent specifies <i>how</i>, frame by frame.</p>
+    <div class="cmp-row"><div class="strip"><video src="videos/rollout_robot_8s.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">Robot manipulation</span><span class="c">grasp and release — a chained pick-and-place command stream</span><span class="r">Olaf-World | Yume-1.5 | LingBot-World 2.0 | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/rollout_fps_8s.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">First-person combat</span><span class="c">weapon switching and firing</span><span class="r">Olaf-World | Yume-1.5 | LingBot-World 2.0 | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/rollout_human_8s.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">Human motion</span><span class="c">dense reference following under an orbiting camera</span><span class="r">Olaf-World | Yume-1.5 | LingBot-World 2.0 | ours</span></div></div>
+    <div class="cmp-row"><div class="strip"><video src="videos/rollout_tps_8s.mp4" muted loop playsinline preload="metadata"></video></div>
+      <div class="cmp-meta"><span class="l">Third-person combat</span><span class="c">chained skill execution against a monster</span><span class="r">Olaf-World | Yume-1.5 | LingBot-World 2.0 | ours</span></div></div>
+  </div>
+</section>
+
+<!-- ═══════════ 06 · out of the cave — the sun ═══════════ -->
+<section class="sunland" id="unseen">
+  <svg class="bigsun" viewBox="0 0 208 208" aria-hidden="true">
+    <g class="rays">
+      <path class="ray" d="M104 18 v-14"/><path class="ray" d="M104 190 v14"/>
+      <path class="ray" d="M18 104 h-14"/><path class="ray" d="M190 104 h14"/>
+      <path class="ray" d="M43 43 l-10 -10"/><path class="ray" d="M165 165 l10 10"/>
+      <path class="ray" d="M165 43 l10 -10"/><path class="ray" d="M43 165 l-10 10"/>
+    </g>
+    <circle class="disc" cx="104" cy="104" r="62"/>
+  </svg>
+  <div class="wrap">
+    <div class="eyebrow">06 · Out of the cave</div>
+    <h2>Actions the model has never seen.</h2>
+    <p class="sunquote">“And then he would see the sun itself, and not mere reflections of it — and he would know it to be the source of all that he and his fellows had been seeing.”</p>
+    <p class="lede">We mod an open-world game with assets the library has never seen — a new rifle, a new character, a greatsword — record each primitive once, and replay the extracted assets elsewhere. The encoder reads <b>dynamics</b>, not memorized categories: a newly demonstrated behavior simply joins the library.</p>
+    <div class="subhead"><span class="ab">A</span>Unseen action assets — each recorded once</div>
+    <p class="subnote">Each cell is one <b>action asset</b>: a single primitive — move, look, fire or attack — demonstrated once, encoded once. Clips like these are the model's <i>entire</i> knowledge of the new weapon and character; no labels, no fine-tuning. The nine per mod are examples.</p>
+    <div class="unseen">
+      <div class="vid-card"><span class="tag">First-person · modded rifle</span><video src="videos/atoms_fp.mp4" muted loop playsinline preload="metadata"></video><div class="cap">A white-and-gold rifle with new raise, recoil, and muzzle response — example primitives, first person.</div></div>
+      <div class="vid-card"><span class="tag">Third-person · modded character &amp; greatsword</span><video src="videos/atoms_tp.mp4" muted loop playsinline preload="metadata"></video><div class="cap">An unseen character with a greatsword that swings rather than shoots — example primitives, third person.</div></div>
+    </div>
+    <div class="subhead"><span class="ab">B</span>Generation in a new environment</div>
+    <p class="subnote">The assets are chained and replayed elsewhere. The environments are known to the model — the assets are not: gait, raise, recoil, and swing all survive.</p>
+    <div class="unseen">
+      <div class="vid-card"><span class="tag">First-person · unseen rifle</span><video src="videos/unseen_fp_runway.mp4" muted loop playsinline preload="metadata"></video><div class="cap">The modded rifle, fired down an airport runway</div></div>
+      <div class="vid-card"><span class="tag">Third-person · unseen sword &amp; character</span><video src="videos/unseen_tp_pier.mp4" muted loop playsinline preload="metadata"></video><div class="cap">The modded character swings the greatsword on a seaside pier</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ citation ═══════════ -->
+<section id="bibtex">
+  <div class="wrap">
+    <div class="eyebrow">Citation</div>
+    <h2>BibTeX</h2>
+    <div class="bib">
+      <pre id="bibsrc">@misc{cao2026shadow,
+  title={ShadowDancer: Teaching Video World Models Any Action by Learning Unified Dynamics Representations from a Video and Its Shadow},
+  author={Jin Cao and Zian Meng and Kaipeng Zhang},
+  year={2026},
+  eprint={2607.28362},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  url={https://arxiv.org/abs/2607.28362},
+}</pre>
+      <div class="bar"><button class="copy" onclick="copyBib(this)">Copy BibTeX</button></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">© 2026 ShadowDancer · Alaya Lab &nbsp;·&nbsp; page hand-crafted, no template</div>
+</footer>
+
+<script>
+/* Videos carry src directly (plays from file:// too). JS only handles
+   placeholder dismissal + on-screen play/pause. Every video gets native
+   controls so it can be paused and scrubbed. */
+(function(){
+  const vids=[...document.querySelectorAll('video')].filter(v=>!v.closest('.th'));
+  vids.forEach(v=>{
+    v.setAttribute('controls','');
+    const hide=()=>{const ph=v.parentElement.querySelector('.ph');if(ph)ph.classList.add('gone');};
+    if(v.readyState>=2)hide();
+    v.addEventListener('loadeddata',hide);
+  });
+  /* autoplay when scrolled into view, but never fight a manual pause */
+  vids.forEach(v=>{
+    v.addEventListener('pause',()=>{if(v._io){v._io=false;}else{v._user=true;}});
+    v.addEventListener('play',()=>{v._user=false;});
+  });
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver(es=>es.forEach(e=>{
+      const v=e.target;
+      if(e.isIntersecting){if(!v._user)v.play().catch(()=>{});}
+      else if(!v.paused){v._io=true;v.pause();}
+    }),{rootMargin:'160px'});
+    vids.forEach(v=>io.observe(v));
+  }else{
+    vids.forEach(v=>v.play().catch(()=>{}));
+  }
+})();
+
+/* §01 thumb previews: play while the strip is on screen, pause off-screen */
+(function(){
+  const strip=document.getElementById('thumbs');
+  if(!strip)return;
+  const vids=[...strip.querySelectorAll('video')];
+  if(!('IntersectionObserver' in window)){vids.forEach(v=>v.play().catch(()=>{}));return;}
+  const io=new IntersectionObserver(es=>{es.forEach(e=>{
+    vids.forEach(v=>{
+      const act=v.closest('.th').classList.contains('active');
+      if(e.isIntersecting&&!act){v.play().catch(()=>{});}
+      else{v.pause();}
+    });
+  });},{rootMargin:'100px'});
+  io.observe(strip);
+})();
+/* §02 protocol browser: tabs swap the shadow pair + the three explanation cells */
+(function(){
+  const P=[
+   {t:"ManiSkill · arm only",k:"maniarm2",
+    d:"the arm trajectory and gripper state",
+    r:"tabletop scene, clutter, materials; the camera is held static",
+    m:"(0, 1) — manipulation without camera motion"},
+   {t:"ManiSkill · arm + camera",k:"manicam2",
+    d:"arm trajectory and camera motion together",
+    r:"tabletop scene and clutter",
+    m:"(1, 1) — joint control"},
+   {t:"SMPL-X · body only",k:"smpldyn2",
+    d:"the articulated body motion — identical, frame for frame",
+    r:"character appearance, scene, lighting; the camera is held static",
+    m:"(0, 1) — this pair teaches the body-dynamics channel"},
+   {t:"SMPL-X · camera only",k:"smplcam2",
+    d:"the camera trajectory — the body is held still",
+    r:"scene, ground, lighting, character texture",
+    m:"(1, 0) — this pair teaches the camera channel"},
+   {t:"SMPL-X · camera + body",k:"smpl_camdyn",
+    d:"body motion and camera trajectory together",
+    r:"character, scene, lighting",
+    m:"(1, 1) — joint control of both channels"},
+   {t:"Character renders",k:"uni3c2",
+    d:"human motion + camera, replayed exactly",
+    r:"the character itself and the entire environment",
+    m:"(1, 1) — a Blender render paired with a generated re-render of the same trajectory"},
+   {t:"UE5 · third-person",k:"ue52",
+    d:"the character's locomotion and attacks, plus its chase camera",
+    r:"the scene — the same run replayed in a different environment",
+    m:"(1, 1)"},
+   {t:"GTA-style",k:"gta",
+    d:"the player's control stream — movement, aim, weapon fire — and its camera",
+    r:"the scene — one action seed replayed at a new location, time of day, and weather",
+    m:"(1, 1)"},
+   {t:"Cyberpunk-style",k:"cp",
+    d:"the player's control stream and camera, in a dense night city",
+    r:"the scene — the same action seed replayed at another spot in the city",
+    m:"(1, 1)"},
+  ];
+  const tabs=document.getElementById('proto-tabs');
+  if(!tabs)return;
+  const va=document.getElementById('pv-a'),vb=document.getElementById('pv-b'),
+        nd=document.getElementById('pn-dyn'),nr=document.getElementById('pn-res'),nm=document.getElementById('pn-mask');
+  /* hard frame-sync: swap both sources, wait until BOTH can play, then start
+     them together from t=0; a watchdog keeps them locked while looping */
+  let seq=0;
+  function loadPair(k){
+    seq++;const my=seq;let ra=false,rb=false;
+    va.pause();vb.pause();
+    const go=()=>{
+      if(my!==seq||!ra||!rb)return;
+      try{va.currentTime=0;vb.currentTime=0;}catch(e){}
+      va.play().catch(()=>{});vb.play().catch(()=>{});
+    };
+    va.addEventListener('canplaythrough',()=>{ra=true;go();},{once:true});
+    vb.addEventListener('canplaythrough',()=>{rb=true;go();},{once:true});
+    va.src=`videos/proto_${k}_a.mp4`;vb.src=`videos/proto_${k}_b.mp4`;
+    va.load();vb.load();
+  }
+  setInterval(()=>{
+    if(va.readyState>=2&&vb.readyState>=2&&!va.paused&&!vb.paused&&
+       Math.abs(va.currentTime-vb.currentTime)>0.07){
+      try{vb.currentTime=va.currentTime;}catch(e){}
+    }
+  },300);
+  /* mirror user interaction across the pair: pause, resume, and scrubbing
+     on either side keep both videos locked together */
+  function mirror(x,y){
+    x.addEventListener('play',()=>{if(y.paused)y.play().catch(()=>{});});
+    x.addEventListener('pause',()=>{if(!x._io&&!y.paused)y.pause();});
+    x.addEventListener('seeked',()=>{
+      if(Math.abs(x.currentTime-y.currentTime)>0.07){try{y.currentTime=x.currentTime;}catch(e){}}
+    });
+  }
+  mirror(va,vb);mirror(vb,va);
+  P.forEach((p,i)=>{
+    const b=document.createElement('button');b.className='pt'+(i===0?' active':'');b.textContent=p.t;
+    b.addEventListener('click',()=>{
+      tabs.querySelectorAll('.pt').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+      loadPair(p.k);
+      nd.textContent=p.d;nr.textContent=p.r;nm.textContent=p.m;
+    });
+    tabs.appendChild(b);
+  });
+  loadPair(P[0].k);
+})();
+/* §01 stage: click a thumbnail to swap the big player; scrub bar appears on hover */
+(function(){
+  const stage=document.getElementById('stage-v'),
+        tag=document.getElementById('stage-tag'),
+        cap=document.getElementById('stage-cap'),
+        ths=document.querySelectorAll('#thumbs .th');
+  if(!stage)return;
+  ths.forEach(t=>t.addEventListener('click',()=>{
+    ths.forEach(x=>{
+      if(x.classList.contains('active')){const pv=x.querySelector('video');if(pv)pv.play().catch(()=>{});}
+      x.classList.remove('active');
+    });
+    t.classList.add('active');
+    const tv=t.querySelector('video');if(tv){tv.pause();try{tv.currentTime=0;}catch(e){}}
+    stage.src=t.dataset.v;
+    tag.textContent=t.dataset.tag;
+    cap.textContent=t.dataset.cap;
+    stage.play().catch(()=>{});
+  }));
+})();
+function copyBib(btn){
+  navigator.clipboard.writeText(document.getElementById('bibsrc').innerText)
+    .then(()=>{btn.textContent='Copied ✓';setTimeout(()=>btn.textContent='Copy BibTeX',1800);});
+}
+</script>
+</body>
+</html>
